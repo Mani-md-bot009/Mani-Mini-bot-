@@ -4,7 +4,7 @@
 // 🔥 Complete Working with Main.js Integration
 // ============================================
 
-const { waqar } = require('../WAQAR WRITES');
+const { waqar } = require('../waqar');
 const config = require('../settings');
 const fs = require('fs-extra');
 const path = require('path');
