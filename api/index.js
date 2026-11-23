@@ -15,7 +15,9 @@ app.use(async (req, res) => {
         });
     }
     try {
-        const r = await fetch(base + req.originalUrl, { method: 'GET' });
+        const headers = {};
+        if (req.headers['x-admin-key']) headers['x-admin-key'] = req.headers['x-admin-key'];
+        const r = await fetch(base + req.originalUrl, { method: 'GET', headers });
         const body = await r.text();
         res.status(r.status).type(r.headers.get('content-type') || 'application/json').send(body);
     } catch (e) {
