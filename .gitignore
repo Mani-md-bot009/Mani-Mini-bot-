@@ -1,0 +1,16 @@
+# Local secrets (keep the committed example template)
+.env
+.env.*
+!.env.example
+
+# WhatsApp authentication/session files
+/session/
+
+# Dependencies and generated files
+/node_modules/
+*.log
+npm-debug.log*
+.DS_Store
+.vercel/
+.railway/
+coverage/

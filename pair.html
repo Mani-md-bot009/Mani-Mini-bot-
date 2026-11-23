@@ -955,6 +955,22 @@ function setLoading(loading) {
     });
 }
 
+async function adminFetch(url) {
+    let key = sessionStorage.getItem('adminApiKey');
+    if (!key) {
+        key = window.prompt('Enter the server ADMIN_API_KEY to continue:');
+    }
+    if (!key) throw new Error('Admin key is required for this operation.');
+
+    const response = await fetch(url, { headers: { 'x-admin-key': key } });
+    if (response.status === 401) {
+        sessionStorage.removeItem('adminApiKey');
+        throw new Error('Admin key was rejected.');
+    }
+    if (response.status !== 503) sessionStorage.setItem('adminApiKey', key);
+    return response;
+}
+
 // ============================================
 // 🔗 NORMAL PAIR
 // ============================================
@@ -986,8 +1002,12 @@ async function getCode() {
         }
 
         // ── Normal Pair ──
-        const res = await fetch(`/code?number=${num}`);
-        const data = await res.json();
+        let res = await fetch(`/code?number=${num}`);
+        let data = await res.json();
+        if (data.adminRequired) {
+            res = await adminFetch(`/code?number=${num}`);
+            data = await res.json();
+        }
 
         if (data.code) {
             showResult(data.code, 'success', true);
@@ -995,12 +1015,12 @@ async function getCode() {
         } else if (data.status === 'already_connected') {
             showResult('✅ Already Connected!\nUse FORCE PAIRING to reset', 'warning');
         } else {
-            showResult(data.message || '❌ Pairing Failed. Try Force Pair', 'error');
+            showResult(data.error || data.message || '❌ Pairing failed.', 'error');
             showToast('❌ Pairing failed', 'error');
         }
     } catch (e) {
-        showResult('❌ Server Error. Try Force Pair', 'error');
-        showToast('❌ Server connection failed', 'error');
+        showResult(`❌ ${e.message || 'Server error.'}`, 'error');
+        showToast(e.message || 'Server connection failed', 'error');
     }
 
     setLoading(false);
@@ -1029,19 +1049,19 @@ async function forcePair() {
     showResult('⏳ FORCE PAIRING... Deleting old session...', 'force');
 
     try {
-        const res = await fetch(`/force-code?number=${num}`);
+        const res = await adminFetch(`/force-code?number=${num}`);
         const data = await res.json();
 
         if (data.code) {
             showResult(data.code, 'success', true);
             showToast('✅ Force pairing successful! Copy code.', 'success');
         } else {
-            showResult(data.message || '❌ Force Pairing Failed', 'error');
+            showResult(data.error || data.message || '❌ Force pairing failed.', 'error');
             showToast('❌ Force pairing failed', 'error');
         }
     } catch (e) {
-        showResult('❌ Server Error. Try again.', 'error');
-        showToast('❌ Server connection failed', 'error');
+        showResult(`❌ ${e.message || 'Server error.'}`, 'error');
+        showToast(e.message || 'Server connection failed', 'error');
     }
 
     setLoading(false);
@@ -1069,19 +1089,19 @@ async function disconnectBot() {
     showResult('⏳ DISCONNECTING...', 'info');
 
     try {
-        const res = await fetch(`/disconnect?number=${num}`);
+        const res = await adminFetch(`/disconnect?number=${num}`);
         const data = await res.json();
 
         if (data.status === 'success') {
             showResult('✅ Disconnected Successfully!\nYou can now pair again.', 'success');
             showToast('✅ Bot disconnected', 'success');
         } else {
-            showResult(data.error || '❌ Disconnect Failed', 'error');
+            showResult(data.error || '❌ Disconnect failed.', 'error');
             showToast('❌ Disconnect failed', 'error');
         }
     } catch (e) {
-        showResult('❌ Server Error', 'error');
-        showToast('❌ Server connection failed', 'error');
+        showResult(`❌ ${e.message || 'Server error.'}`, 'error');
+        showToast(e.message || 'Server connection failed', 'error');
     }
 
     setLoading(false);
@@ -1096,7 +1116,6 @@ async function checkSession() {
 
     if (number) {
         document.getElementById('number').value = number;
-        setTimeout(() => getCode(), 500);
     }
 }
 

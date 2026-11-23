@@ -1,12 +1,14 @@
 {
   "name": "𝗠𝗔𝗡𝗜 𝗠𝗜𝗡𝗜 𝗕𝗢𝗧",
   "description": "WhatsApp bot - 𝗠𝗔𝗡𝗜 𝗠𝗜𝗡𝗜 𝗕𝗢𝗧",
-  "repository": "https://github.com/YOUR_GITHUB_USER/mani-mini-bot",
+  "repository": "https://github.com/Mani-md-bot009/Mani-Mini-bot-",
   "keywords": ["whatsapp", "bot"],
   "buildpacks": [{ "url": "heroku/nodejs" }],
   "env": {
-    "GITHUB_TOKEN": { "description": "GitHub token (repo scope) for session storage", "required": true },
-    "GITHUB_REPO": { "description": "user/repo for sessions", "required": true },
+    "GITHUB_TOKEN": { "description": "GitHub token restricted to the private session repository with contents read/write access", "required": true },
+    "GITHUB_REPO": { "description": "owner/repository of the private session repository", "required": true },
+    "ADMIN_API_KEY": { "description": "Random secret (at least 32 characters) for admin-only API routes", "required": true },
+    "OWNER_NUMBER": { "description": "Authorized WhatsApp phone number(s), digits with country code", "required": true },
     "CHANNEL_JID": { "description": "Your WhatsApp channel JID (xxx@newsletter)", "required": false },
     "TELEGRAM_BOT_TOKEN": { "description": "Telegram bot token", "required": false },
     "TELEGRAM_CHAT_ID": { "description": "Telegram chat id for notifications", "required": false }

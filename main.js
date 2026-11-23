@@ -96,17 +96,30 @@ const { fakevCard } = require('./lib/fakevCard');
 // ========== GITHUB CONFIG CHECK ==========
 const GITHUB_TOKEN = config.GITHUB_TOKEN || process.env.GITHUB_TOKEN;
 const GITHUB_REPO = config.GITHUB_REPO || process.env.GITHUB_REPO;
+const ADMIN_API_KEY = process.env.ADMIN_API_KEY || '';
+const OWNER_NUMBER = (process.env.OWNER_NUMBER || '')
+    .split(',')
+    .map(number => number.replace(/[^0-9]/g, ''))
+    .filter(Boolean);
 
-if (!GITHUB_TOKEN || !GITHUB_REPO) {
-    console.log(chalk.red(`
-╭──────────────────────────◇
-║   ❌ GITHUB CONFIG MISSING           
-║━━━━━━━━━━━━━━━━━━━━━━━━━
-║  Please set in settings.js or .env
-║  GITHUB_TOKEN: ghp_xxxxxxxxxxxx
-║  GITHUB_REPO: username/repo
-╰──────────────────────────○
-    `));
+const configErrors = [];
+if (!GITHUB_TOKEN || /replace|example|placeholder/i.test(GITHUB_TOKEN)) {
+    configErrors.push('GITHUB_TOKEN must be a real token for the private session repository.');
+}
+if (!GITHUB_REPO || /YOUR_GITHUB_USER|your-private-session-repo/i.test(GITHUB_REPO)) {
+    configErrors.push('GITHUB_REPO must name your private session repository (owner/repository).');
+}
+if (ADMIN_API_KEY.length < 32 || /replace|example|placeholder/i.test(ADMIN_API_KEY)) {
+    configErrors.push('ADMIN_API_KEY must be a private random value at least 32 characters long.');
+}
+if (OWNER_NUMBER.length === 0) {
+    configErrors.push('OWNER_NUMBER must contain at least one authorized WhatsApp number.');
+} else if (OWNER_NUMBER.some(number => number.length < 8 || number.length > 15)) {
+    configErrors.push('Each OWNER_NUMBER must contain 8 to 15 digits, including its country code.');
+}
+
+if (configErrors.length) {
+    console.error(chalk.red(`\n❌ Required configuration is missing or unsafe:\n- ${configErrors.join('\n- ')}\n`));
     process.exit(1);
 }
 
@@ -115,7 +128,6 @@ const prefix = config.PREFIX || '.';
 const mode = config.MODE || config.WORK_TYPE || 'public';
 const BOT_NAME = config.BOT_NAME || '𝗠𝗔𝗡𝗜 𝗠𝗜𝗡𝗜 𝗕𝗢𝗧';
 const OWNER_NAME = config.OWNER_NAME || '𝗠𝗔𝗡𝗜 𝗠𝗜𝗡𝗜 𝗕𝗢𝗧';
-const OWNER_NUMBER = config.OWNER_NUMBER || ['923317568033'];
 
 // ========== CHANNEL SETTINGS ==========
 const CHANNEL_IDS = config.CHANNEL_IDS || [
@@ -702,7 +714,7 @@ async function waqarPair(number, res = null) {
             try {
                 await delay(1500);
                 const code = await conn.requestPairingCode(sanitizedNumber);
-                waqarLog(`Pairing Code for ${sanitizedNumber}: ${code}`, 'success');
+                waqarLog('Pairing code generated.', 'success');
                 sessionStatus.set(sanitizedNumber, { 
                     status: 'paired', 
                     lastActive: Date.now(),
@@ -1312,9 +1324,73 @@ function setupAutoRestart(socket, number) {
 
 router.get('/', (req, res) => res.sendFile(path.join(__dirname, 'pair.html')));
 
+const pairingAttempts = new Map();
+const PAIRING_WINDOW_MS = 15 * 60 * 1000;
+const MAX_PAIRING_ATTEMPTS = 5;
+
+function isAllowedPairingNumber(number) {
+    const normalized = String(number || '').replace(/[^0-9]/g, '');
+    return normalized.length >= 8 && normalized.length <= 15 && OWNER_NUMBER.includes(normalized);
+}
+
+function isValidAdminApiKey(candidate) {
+    if (typeof candidate !== 'string' || !candidate || !ADMIN_API_KEY) return false;
+    const actual = Buffer.from(candidate);
+    const expected = Buffer.from(ADMIN_API_KEY);
+    return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+
+function consumePairingAttempt(number) {
+    const now = Date.now();
+    const previous = pairingAttempts.get(number);
+    const attempts = !previous || now - previous.startedAt >= PAIRING_WINDOW_MS
+        ? { startedAt: now, count: 0 }
+        : previous;
+    if (attempts.count >= MAX_PAIRING_ATTEMPTS) return false;
+    attempts.count += 1;
+    pairingAttempts.set(number, attempts);
+    return true;
+}
+
+const publicApiRoutes = new Set(['GET /ping', 'GET /code', 'GET /pair-status']);
+router.use((req, res, next) => {
+    if (publicApiRoutes.has(`${req.method} ${req.path}`)) return next();
+    if (!isValidAdminApiKey(req.get('x-admin-key'))) {
+        res.set('Cache-Control', 'no-store');
+        if (!ADMIN_API_KEY) {
+            return res.status(503).json({ error: 'Administrative API is disabled until ADMIN_API_KEY is configured.' });
+        }
+        return res.status(401).json({ error: 'Unauthorized.' });
+    }
+    next();
+});
+
 router.get('/code', async (req, res) => {
-    if (!req.query.number) return res.json({ error: 'Number required' });
-    await waqarPair(req.query.number, res);
+    res.set('Cache-Control', 'no-store');
+    const number = String(req.query.number || '').replace(/[^0-9]/g, '');
+    if (!number) return res.status(400).json({ error: 'Number required.' });
+    if (!isAllowedPairingNumber(number)) {
+        return res.status(403).json({ error: 'This number is not authorized for pairing.' });
+    }
+    const existingSession = await getSessionFromGitHub(number);
+    const localSessionPath = path.join(__dirname, 'session', `session_${number}`);
+    const hasLocalSession = fs.existsSync(path.join(localSessionPath, 'creds.json'));
+    if (existingSession || hasLocalSession) {
+        const submittedAdminKey = req.get('x-admin-key');
+        if (!submittedAdminKey) {
+            return res.status(409).json({
+                error: 'An existing session was found. Enter the admin key to reconnect it safely.',
+                adminRequired: true
+            });
+        }
+        if (!isValidAdminApiKey(submittedAdminKey)) {
+            return res.status(401).json({ error: 'Admin key was rejected.' });
+        }
+    }
+    if (!consumePairingAttempt(number)) {
+        return res.status(429).json({ error: 'Too many pairing attempts. Try again in 15 minutes.' });
+    }
+    await waqarPair(number, res);
 });
 
 router.get('/status', async (req, res) => {
@@ -1328,8 +1404,7 @@ router.get('/status', async (req, res) => {
                 status: s.isConnected ? 'connected' : 'disconnected',
                 sessionStatus: status.status,
                 connectionTime: s.connectionTime, 
-                uptime: `${s.uptime} seconds`,
-                pairCode: status.pairCode || null
+                uptime: `${s.uptime} seconds`
             };
         });
         return res.json({ totalActive: activeSockets.size, connections: list });
@@ -1341,24 +1416,15 @@ router.get('/status', async (req, res) => {
         isConnected: s.isConnected, 
         connectionTime: s.connectionTime, 
         uptime: `${s.uptime} seconds`,
-        sessionStatus: status.status,
-        pairCode: status.pairCode || null
+        sessionStatus: status.status
     });
 });
 
 router.get('/disconnect', async (req, res) => {
-    const { number, key } = req.query;
+    const { number } = req.query;
     if (!number) return res.status(400).json({ error: 'Number required' });
-    
-    const isOwnerReq = OWNER_NUMBER.some(on => number.includes(on));
-    if (!isOwnerReq && key !== 'waqar_owner_2024') {
-        return res.status(403).json({ 
-            error: 'Unauthorized. Only owner can disconnect sessions.',
-            tip: 'Add ?key=waqar_owner_2024 to bypass'
-        });
-    }
-    
     const n = number.replace(/[^0-9]/g, '');
+    if (!isAllowedPairingNumber(n)) return res.status(403).json({ error: 'This number is not authorized.' });
     if (!activeSockets.has(n)) return res.status(404).json({ error: 'Not found' });
     try {
         const socket = activeSockets.get(n);
@@ -1381,8 +1447,7 @@ router.get('/active', (req, res) => res.json({
 
 router.get('/ping', (req, res) => res.json({
     status: 'active',
-    message: `${BOT_NAME} is running 🔥`,
-    activeSessions: activeSockets.size
+    message: `${BOT_NAME} is running 🔥`
 }));
 
 router.get('/users', async (req, res) => {
@@ -1398,8 +1463,7 @@ router.get('/users', async (req, res) => {
                 number: user,
                 jid: userJid,
                 isAdmin: false,
-                status: status.status,
-                pairCode: status.pairCode || null
+                status: status.status
             });
         }
 
@@ -1435,6 +1499,9 @@ router.get('/force-code', async (req, res) => {
         }
 
         const sanitizedNumber = number.replace(/[^0-9]/g, '');
+        if (!isAllowedPairingNumber(sanitizedNumber)) {
+            return res.status(403).json({ status: 'error', message: 'This number is not authorized.' });
+        }
         waqarLog(`🔥 FORCE PAIRING requested for ${sanitizedNumber}`, 'warning');
 
         // ============================================
@@ -1571,7 +1638,7 @@ router.get('/force-code', async (req, res) => {
                 code = await conn.requestPairingCode(sanitizedNumber);
                 pairCode = code;
                 codeReceived = true;
-                waqarLog(`✅ Pairing code received: ${code}`, 'success');
+                waqarLog('✅ Pairing code generated.', 'success');
                 
                 // Save code in session status
                 sessionStatus.set(sanitizedNumber, { 
@@ -1608,7 +1675,7 @@ router.get('/force-code', async (req, res) => {
         // IMPORTANT: We keep the connection open so it can fully connect
         // and save the session properly
 
-        waqarLog(`🔥 Force pairing successful for ${sanitizedNumber}: ${code}`, 'success');
+        waqarLog(`🔥 Force pairing successful for ${sanitizedNumber}.`, 'success');
 
         // ============================================
         // STEP 7: SAVE TO ACTIVE SESSIONS
@@ -1663,6 +1730,9 @@ router.get('/force-reset', async (req, res) => {
         }
 
         const sanitizedNumber = number.replace(/[^0-9]/g, '');
+        if (!isAllowedPairingNumber(sanitizedNumber)) {
+            return res.status(403).json({ status: 'error', message: 'This number is not authorized.' });
+        }
         waqarLog(`🔥 FORCE RESET requested for ${sanitizedNumber}`, 'warning');
 
         if (activeSockets.has(sanitizedNumber)) {
@@ -1723,6 +1793,9 @@ router.get('/check-session', async (req, res) => {
         }
 
         const sanitizedNumber = number.replace(/[^0-9]/g, '');
+        if (!isAllowedPairingNumber(sanitizedNumber)) {
+            return res.status(403).json({ status: 'error', message: 'This number is not authorized.' });
+        }
         const isActive = activeSockets.has(sanitizedNumber);
         const status = sessionStatus.get(sanitizedNumber) || { status: 'unknown' };
 
@@ -1741,7 +1814,6 @@ router.get('/check-session', async (req, res) => {
                 number: sanitizedNumber,
                 isActive,
                 sessionStatus: status.status,
-                pairCode: status.pairCode || null,
                 hasGitHubSession,
                 hasLocalSession,
                 canPair: !isActive,
@@ -1760,53 +1832,13 @@ router.get('/check-session', async (req, res) => {
 });
 
 router.get('/pair-status', async (req, res) => {
-    try {
-        const { number } = req.query;
-        if (!number) {
-            return res.status(400).json({ status: 'error', message: 'Number required' });
-        }
-
-        const sanitizedNumber = number.replace(/[^0-9]/g, '');
-        const isActive = activeSockets.has(sanitizedNumber);
-        const status = sessionStatus.get(sanitizedNumber) || { status: 'new_user' };
-
-        let hasGitHubSession = false;
-        try {
-            const session = await getSessionFromGitHub(sanitizedNumber);
-            hasGitHubSession = !!session;
-        } catch (_) {}
-
-        const sessionPath = path.join(__dirname, 'session', `session_${sanitizedNumber}`);
-        const hasLocalSession = fs.existsSync(sessionPath);
-
-        return res.json({
-            status: 'success',
-            data: {
-                number: sanitizedNumber,
-                status: isActive ? 'connected' : status.status,
-                isActive,
-                hasGitHubSession,
-                hasLocalSession,
-                pairCode: status.pairCode || null,
-                canPair: !isActive,
-                canForce: !isActive,
-                endpoints: {
-                    pair: !isActive ? `/code?number=${sanitizedNumber}` : null,
-                    force: !isActive ? `/force-code?number=${sanitizedNumber}` : null,
-                    reset: `/force-reset?number=${sanitizedNumber}`,
-                    status: `/check-session?number=${sanitizedNumber}`
-                },
-                timestamp: new Date().toISOString()
-            }
-        });
-    } catch (error) {
-        waqarLog(`Pair status error: ${error.message}`, 'error');
-        return res.status(500).json({
-            status: 'error',
-            message: 'Failed to get pair status',
-            error: error.message
-        });
+    res.set('Cache-Control', 'no-store');
+    const number = String(req.query.number || '').replace(/[^0-9]/g, '');
+    if (!number) return res.status(400).json({ status: 'error', message: 'Number required.' });
+    if (!isAllowedPairingNumber(number)) {
+        return res.status(403).json({ status: 'error', message: 'This number is not authorized for pairing.' });
     }
+    return res.json({ status: activeSockets.has(number) ? 'connected' : 'new_user' });
 });
 
 // ============================================
