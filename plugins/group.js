@@ -89,10 +89,10 @@ waqar({
     });
 
     // 🔧 FIX: Also filter out owner's JID if trying to remove owner
-    const ownerNumber = config.OWNER_NUMBER || '923317568033';
+    const ownerNumbers = config.OWNER_NUMBER || [];
     users = users.filter(user => {
         const userNumber = user.split('@')[0];
-        return userNumber !== ownerNumber;
+        return !ownerNumbers.includes(userNumber);
     });
 
     if (users.length === 0) {

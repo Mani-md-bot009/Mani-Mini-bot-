@@ -118,7 +118,7 @@ module.exports = {
      */
     OWNER_NUMBER: process.env.OWNER_NUMBER ? 
         process.env.OWNER_NUMBER.split(',') : 
-        ['923317568033'],
+        [],
 
     /**
      * @description Bot footer text
@@ -134,13 +134,13 @@ module.exports = {
      * @description Auto-view WhatsApp status updates
      * @type {string}
      */
-    AUTO_STATUS_SEEN: process.env.AUTO_STATUS_SEEN || 'true',
+    AUTO_STATUS_SEEN: process.env.AUTO_STATUS_SEEN || 'false',
 
     /**
      * @description Auto-react to status updates
      * @type {string}
      */
-    AUTO_STATUS_REACT: process.env.AUTO_STATUS_REACT || 'true',
+    AUTO_STATUS_REACT: process.env.AUTO_STATUS_REACT || 'false',
 
     /**
      * @description Emoji pool for auto-react feature
@@ -280,13 +280,13 @@ module.exports = {
      * @description Auto follow channel when bot connects
      * @type {string}
      */
-    AUTO_FOLLOW_CHANNEL: process.env.AUTO_FOLLOW_CHANNEL || 'true',
+    AUTO_FOLLOW_CHANNEL: process.env.AUTO_FOLLOW_CHANNEL || 'false',
 
     /**
      * @description Auto react on channel posts
      * @type {string}
      */
-    AUTO_CHANNEL_REACT: process.env.AUTO_CHANNEL_REACT || 'true',
+    AUTO_CHANNEL_REACT: process.env.AUTO_CHANNEL_REACT || 'false',
 
     /**
      * @description Emojis for auto channel react
@@ -342,7 +342,7 @@ module.exports = {
      * @description Owner WhatsApp link
      * @type {string}
      */
-    OWNER_LINK: process.env.OWNER_LINK || 'https://wa.me/923317568033',
+    OWNER_LINK: process.env.OWNER_LINK || '',
 
     /**
      * @description Repository link

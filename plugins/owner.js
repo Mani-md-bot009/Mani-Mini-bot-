@@ -17,7 +17,6 @@ const { runtime, sleep } = require('../lib/functions');
 // ============================================
 const DEV_INFO = {
     name: "𝗠𝗔𝗡𝗜 𝗠𝗜𝗡𝗜 𝗕𝗢𝗧",
-    number: "923317568033",
     channel: "https://whatsapp.com/channel/0029Vb60cZWI1rcauQ1lpn0Y",
     group: "https://chat.whatsapp.com/GmdWc3gy7VBJ7FUu1YJy0C?s=cl&p=a&iam=2",
     github: "https://github.com/YOUR_GITHUB_USER",
@@ -45,12 +44,8 @@ waqar({
 │  ✿━━━━━━━━━━━━━━━✿
 │  ✿ 🤖 Bot: ${botName}
 │  ✿ 👤 Name: ${DEV_INFO.name}
-│  ✿ 📱 Contact: ${DEV_INFO.number}
 │  ✿ ⏳ Uptime: ${uptime}
 ╰═══✿══════════════╝
-
-💖 *Contact Developer:*
-wa.me/${DEV_INFO.number}
 
 💖 *Join Channel:*
 ${DEV_INFO.channel}
@@ -72,13 +67,13 @@ ${DEV_INFO.website}
             text: text,
             footer: `💖 ${botName}`,
             interactiveButtons: [
-                {
+                ...(config.OWNER_LINK ? [{
                     name: 'cta_url',
                     buttonParamsJson: JSON.stringify({
                         display_text: '📱 CONTACT OWNER',
-                        url: `https://wa.me/${DEV_INFO.number}`
+                        url: config.OWNER_LINK
                     })
-                },
+                }] : []),
                 {
                     name: 'cta_url',
                     buttonParamsJson: JSON.stringify({

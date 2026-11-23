@@ -174,13 +174,13 @@ waqar({
                         url: config.CHANNEL_LINK || 'https://whatsapp.com/channel/0029Vb60cZWI1rcauQ1lpn0Y'
                     })
                 },
-                {
+                ...(config.OWNER_LINK ? [{
                     name: 'cta_url',
                     buttonParamsJson: JSON.stringify({
                         display_text: '👑 🄾🅆🄽🄴🅁 ✌︎㋡',
-                        url: config.OWNER_LINK || 'https://wa.me/923317568033'
+                        url: config.OWNER_LINK
                     })
-                }
+                }] : [])
             ]
         });
 
@@ -210,7 +210,7 @@ waqar({
                 }, { quoted: incoming });
             } else if (selectedId === 'owner') {
                 await waqar.sendMessage(from, {
-                    text: `👑 *Owner Info*\n\n📱 Number: 923317568033\n💖 Name: 𝗠𝗔𝗡𝗜 𝗠𝗜𝗡𝗜 𝗕𝗢𝗧`
+                    text: `👑 *Owner Info*\n\n💖 Name: 𝗠𝗔𝗡𝗜 𝗠𝗜𝗡𝗜 𝗕𝗢𝗧`
                 }, { quoted: incoming });
             } else if (selectedId === 'ping') {
                 const start = Date.now();
