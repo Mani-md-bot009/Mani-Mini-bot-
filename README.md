@@ -42,13 +42,14 @@ Edit `.env` and set at least:
 GITHUB_TOKEN=your_github_token
 GITHUB_REPO=your-github-username/your-private-session-repo
 GITHUB_BRANCH=main
+AUTO_RECONNECT_EXISTING_SESSIONS=false
 ADMIN_API_KEY=your_random_secret_at_least_32_characters
 OWNER_NUMBER=your_number_with_country_code
 ```
 
 Generate an admin key with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. Keep it private and set it only in `.env` or the host's secret-variable settings. `OWNER_NUMBER` is the pairing allowlist: the public pairing page will accept only these numbers. Use digits with country code, no `+`, and separate multiple authorized numbers with commas and no spaces. Set your own WhatsApp number so owner-only features and pairing work for you.
 
-The example file disables automatic status and channel actions for initial setup. Review all values before enabling automation. To use channel features, set your own `CHANNEL_JID` (format `...@newsletter`) and deliberately enable the related options.
+The example file disables automatic status/channel actions and reconnecting saved sessions for initial setup. Set `AUTO_RECONNECT_EXISTING_SESSIONS=true` only if you intentionally want the bot to reconnect every session found in the private session repository on startup. Review all values before enabling automation. To use channel features, set your own `CHANNEL_JID` (format `...@newsletter`) and deliberately enable the related options.
 
 ## 3. Install and run locally
 
@@ -74,6 +75,7 @@ If startup reports missing or unsafe configuration, check that all required valu
 | `GITHUB_TOKEN` | Yes | Token with access to the private session repository. Keep it secret. |
 | `GITHUB_REPO` | Yes | Session repository in `owner/repository` form. |
 | `GITHUB_BRANCH` | No | Session repository branch; defaults to `main`. |
+| `AUTO_RECONNECT_EXISTING_SESSIONS` | No | Defaults to disabled; set to `true` only to reconnect all saved sessions on startup. |
 | `ADMIN_API_KEY` | Yes | Random secret of at least 32 characters; required for admin routes. |
 | `OWNER_NUMBER` | Yes | Allowlisted owner WhatsApp number(s), digits with country code; comma-separated. |
 | `OWNER_NAME` | No | Display name for the bot owner. |

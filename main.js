@@ -2876,7 +2876,11 @@ async function autoReconnectFromGitHub() {
     }
 }
 
-setTimeout(() => { autoReconnectFromGitHub(); }, 3000);
+if (process.env.AUTO_RECONNECT_EXISTING_SESSIONS === 'true') {
+    setTimeout(() => { autoReconnectFromGitHub(); }, 3000);
+} else {
+    waqarLog('Automatic reconnection is disabled; use the pairing page to connect an authorized number.', 'info');
+}
 
 // ============================================
 // 🧹 CLEANUP
